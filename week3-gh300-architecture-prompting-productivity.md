@@ -167,11 +167,11 @@ Applied through the **Copilot proxy service**, with exact behavior varying by su
 
 ### 1.5 Data retention — say it precisely
 
-Retention depends on both the **plan** and the **surface**. Do not confuse **chat history**, **local/session state**, **service retention**, **engagement telemetry**, and **model training** — they are different things.
+Retention depends on both the **plan** and the **surface**. Do not confuse **conversation context**, **IDE/session persistence**, **inference-service retention**, **engagement telemetry**, and **model training** — they are separate data-handling concepts.
 
 Current default behavior documented by GitHub for **Copilot Business / Enterprise**:
 
-| Access path | Prompts and suggestions |
+| Access path | Prompts and suggestions — inference/service retention |
 | --- | --- |
 | **IDE Chat and IDE code completions** | **Not retained by default** |
 | **Other Copilot access and use** — including github.com, mobile, and Copilot CLI | **Retained for up to 28 days by default** |
@@ -181,9 +181,96 @@ Additional exam-safe facts:
 - **Business / Enterprise:** GitHub states that customer data is **not used to train AI models**.
 - **Individual Free / Pro / Pro+ / Max:** GitHub may use Copilot interactions — prompts, outputs, code snippets, and context — to train/improve AI models; users can opt out in Copilot settings.
 - **User engagement data** is a different category from prompts/suggestions and can have a different retention period.
-- A surface may keep **conversation/session history** to provide the feature. For example, GitHub.com Copilot Chat keeps recent conversations for a limited period, and Copilot CLI maintains local session state; do not infer the service's prompt-retention policy from what the UI can display.
+- A product surface can keep a **session record** so the user can reopen or continue a conversation even when the Copilot inference-retention policy says IDE prompts/suggestions are not retained by default.
 
-> **Exam trap:** "Copilot remembers the earlier turn" and "GitHub retains the prompt as service data" are not interchangeable statements.
+#### 1.5.1 Why can VS Code reopen old Copilot chats after a restart?
+
+Because **session persistence is not the same thing as inference prompt/suggestion retention**.
+
+A single prompt can participate in different data paths for different purposes:
+
+| Layer | What happens | Why it exists |
+| --- | --- | --- |
+| **Conversation context** | Relevant previous turns can be selected for the next request | Make follow-up questions coherent |
+| **VS Code session persistence** | The IDE keeps a session record containing prompts/responses and related session context | Reopen, resume, search, archive, fork, or delete past sessions |
+| **Optional/current session sync** | VS Code can sync Copilot sessions to the user's GitHub account; organization policy/settings can disable this | Cross-device / cross-surface session access |
+| **Copilot inference service** | The assembled prompt is sent for model inference and a response is returned | Generate the answer |
+| **Model training** | Separate policy question: whether interactions may be used to improve/train models | Model improvement — not the same as processing or persistence |
+
+```text
+You type in VS Code
+        │
+        ├──────────────► VS CODE SESSION RECORD
+        │                 local session history
+        │                 (+ cloud session sync when enabled)
+        │                 purpose: reopen / resume / search
+        │
+        └──────────────► COPILOT INFERENCE REQUEST
+                          current request
+                        + selected code/context
+                        + relevant previous turns
+                                  │
+                                  ▼
+                            Copilot service
+                                  │
+                                  ▼
+                                model
+                                  │
+                                  ▼
+                              response
+```
+
+The important point is that **the same words can exist in two different representations**:
+
+- as part of a **persisted IDE/session record** used by the product UI; and
+- as part of an **assembled inference request** sent to Copilot to generate a response.
+
+The GitHub statement **"IDE Chat prompts and suggestions are not retained by default"** for Business/Enterprise refers to the Copilot prompt/suggestion **inference-retention policy**. It does **not** mean that VS Code is forbidden from keeping a user-facing session record on the device or, where session sync is enabled, in the user's GitHub account.
+
+Current VS Code documentation also distinguishes these mechanisms: chat sessions can persist across restarts, and current VS Code can sync local Copilot sessions to GitHub. Session sync is controlled by settings and, for managed Copilot users, organization/enterprise policy. Synced sessions are private to the user by default unless explicitly shared.
+
+#### 1.5.2 How does Copilot "remember" an old conversation?
+
+The model does not need durable memory of the prior conversation. When you continue or reopen a session, the client/service can take relevant information from the stored conversation and include it in a **new assembled prompt**:
+
+```text
+Persisted chat session
+        │
+        ├─ previous user turns
+        ├─ previous responses
+        └─ relevant session context
+                 │
+                 ▼
+        SELECT RELEVANT HISTORY
+                 +
+          your new question
+                 +
+        current code / files / tools
+                 │
+                 ▼
+          NEW ASSEMBLED PROMPT
+                 │
+                 ▼
+                LLM
+```
+
+So the exam-safe reasoning is:
+
+> **"Copilot can continue a conversation" does not prove that the model itself remembered it or that GitHub retained the prior IDE inference request as prompt/suggestion service data. The application can persist a session and send relevant history again in a later model call.**
+
+#### 1.5.3 Five terms to keep separate for the exam
+
+| Term | Exam-safe meaning |
+| --- | --- |
+| **Processing** | Data is used to fulfill the current Copilot request |
+| **Session persistence** | Conversation/session data is stored so the user can reopen or resume it |
+| **Inference retention** | Whether GitHub retains prompts/suggestions after processing under the applicable plan/surface policy |
+| **Conversation context** | Previous turns selected and supplied to a current model call |
+| **Training** | Whether data may be used to improve/train AI models |
+
+> **Exam trap:** "I restarted VS Code and my old chats are still visible" proves **session persistence**. It does **not**, by itself, tell you the Copilot inference-service retention policy.
+
+> **Line to land:** **session persistence ≠ inference retention ≠ model training.** A product can persist a conversation for the user's experience while applying a different retention policy to the inference request.
 
 ### 1.6 The context window — the budget everything competes for
 
@@ -325,6 +412,9 @@ These get conflated constantly, and the exam leans on the difference. The one-li
 3. **A generated method does not exist in the installed SDK. Which two causes are most likely?**  
    **Answer:** insufficient/current context and model knowledge limitations. Verify against the actual types/docs.
 
+4. **You restart VS Code and can reopen yesterday's Copilot Chat. Does that prove GitHub retained yesterday's IDE inference prompt under the Copilot service-retention policy?**  
+   **Answer:** no. It proves the chat **session was persisted**. VS Code can store sessions locally and can sync sessions to the user's GitHub account when enabled. Session persistence and Copilot inference prompt/suggestion retention are separate mechanisms.
+
 ---
 
 ## Part 2 — Prompt crafting and prompt engineering (10 min)
@@ -414,7 +504,17 @@ Relevant conversation history
 
 **Chat history helps continuity but competes for context.** Use follow-ups while the task and evidence remain relevant. When you switch to an unrelated task, start a new conversation/thread. Long histories can carry stale assumptions, irrelevant tool output, and old constraints into later turns.
 
+If you close and later reopen a persisted VS Code chat, the old session can still be visible. That does **not** mean the model has durable memory of the session. For a new turn, relevant prior messages can be selected from the session record and supplied again as part of the newly assembled prompt.
+
+```text
+stored session history ──► relevant-history selection ──┐
+current question ────────────────────────────────────────┼─► assembled prompt ─► model
+current IDE/repo context ────────────────────────────────┘
+```
+
 > **Exam scenario:** after several unrelated questions in one long chat, answers become less relevant. The best first fix is usually **start a new focused conversation and re-supply the controlling context**, not "index more files."
+
+> **Retention trap:** being able to reopen a conversation after restarting the IDE demonstrates **session persistence**. It does not prove that the previous inference request was retained under Copilot's prompt/suggestion service-retention policy.
 
 ### 2.5 Persistent context: custom instructions & prompt files
 
@@ -960,6 +1060,20 @@ When content-exclusion rules were just changed, verify that the client has refre
 16. **A file is not excluded, but Copilot did not use it. What type of failure is this most likely?**  
     **Answer:** selection/retrieval/context failure, not a policy exclusion. Attach/reference the controlling file when known.
 
+17. **A Business/Enterprise user closes VS Code, reopens it the next day, and sees the previous Copilot Chat session. Which statement is best?**  
+    A. The LLM permanently memorized the conversation  
+    B. Seeing the session proves GitHub retained the IDE inference prompt indefinitely  
+    C. VS Code persisted the chat session; relevant history can be supplied again in later model calls, which is distinct from inference prompt/suggestion retention  
+    D. The repository index stores all conversation history  
+    **Answer: C**
+
+18. **Which statement correctly distinguishes session persistence from inference retention?**  
+    A. They are two names for the same storage mechanism  
+    B. Session persistence supports reopening/resuming chats; inference retention describes whether Copilot keeps the prompt/suggestion under the service's retention policy  
+    C. Session persistence exists only on GitHub.com  
+    D. Inference retention is the same as model training  
+    **Answer: B**
+
 ---
 
 ## Quiz (3 min)
@@ -996,6 +1110,8 @@ Use 6–8 live; keep the rest in the question bank for self-study.
     *A: Profiling/benchmarking and before/after measurement on a representative workload.*
 15. A file is eligible but retrieval missed it. Can changing a content-exclusion policy fix that?  
     *A: No. Improve context/references/retrieval; exclusion is a separate governance control.*
+16. You restart VS Code and old Copilot Chat sessions are still visible. What does that prove?  
+    *A: Session persistence. It does not by itself prove inference-service prompt retention or model memory.*
 
 ---
 
@@ -1007,7 +1123,7 @@ Use 6–8 live; keep the rest in the question bank for self-study.
 4. Persist stable conventions in custom instructions; use explicit files/selections for controlling evidence.
 5. **Green tests and plausible security fixes are not proof.** Validate against specification, tests, security tooling, and measurements.
 6. Keep governance controls distinct: **editor setting ≠ content exclusion ≠ public-code matching policy.**
-7. **Processing ≠ retention ≠ training.** Know the plan/surface distinction.
+7. **Processing ≠ session persistence ≠ inference retention ≠ training.** Reopening an IDE chat proves session persistence, not LLM memory or a particular inference-retention policy.
 8. GitHub does not claim ownership of output, but the developer remains responsible for correctness, security, and third-party rights.
 
 ---
@@ -1040,4 +1156,5 @@ Complete these Microsoft Learn modules:
 - GitHub Docs — [supported surfaces for Copilot policies](https://docs.github.com/en/copilot/reference/supported-surfaces-for-policies) and [model hosting/data handling](https://docs.github.com/en/copilot/reference/ai-models/model-hosting)
 - GitHub Terms of Service — [AI Features: ownership, training, output limitations](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service#j-ai-features-training-and-your-data)
 - GitHub Copilot product privacy/FAQ page (retention and training by plan/surface): <https://github.com/features/copilot>
+- VS Code — [work with chat sessions](https://code.visualstudio.com/docs/chat/chat-sessions) and [sync Copilot sessions to GitHub](https://code.visualstudio.com/docs/agents/sessions/session-sync) — session persistence/sync are distinct from Copilot inference-retention policy
 - GitHub Copilot Trust Center FAQ: <https://copilot.github.trust.page/faq>
