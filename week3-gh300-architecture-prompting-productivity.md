@@ -158,12 +158,34 @@ Applied through the **Copilot proxy service**, with exact behavior varying by su
 
 > Exact filters and their ordering vary by feature/model and can evolve. **For the exam, know the lifecycle and the purpose of proxy/pre- and post-processing rather than memorizing an implementation detail that may change.**
 
-**Exam trap — Block versus Allow:**
+**Exam trap — what “matching public code” actually means:**
+
+A **matching public-code suggestion** is a suggestion that Copilot has already **generated**, and GitHub then detects that the generated code is identical or sufficiently similar to code that exists in a **public GitHub repository**. It does **not** necessarily mean Copilot searched another repository and copied that code at request time.
+
+```text
+Copilot generates a suggestion
+          │
+          ▼
+GitHub compares the generated suggestion
+against its public-code matching index
+          │
+     ┌────┴────┐
+     │         │
+   no match   match
+     │         │
+     ▼         ▼
+ show       apply public-code
+ normally   matching policy
+```
+
+**Block versus Allow:**
 
 - **Block matching suggestions:** matching public-code suggestions are discarded/suppressed.
 - **Allow matching suggestions:** code referencing can identify matching public repositories and available license information so the developer can decide what to do.
 - GitHub's current code-referencing documentation describes comparison using the proposed suggestion plus surrounding code of roughly **150 characters**. Treat this as implementation detail, not the concept to memorize.
 - The setting can be controlled by an individual, organization, or enterprise policy, depending on the subscription.
+
+> **Exam-safe sentence:** public-code matching checks **generated output** against public GitHub code. It is different from repository semantic indexing, which retrieves relevant context from your eligible repository/workspace before generation.
 
 ### 1.5 Data retention — say it precisely
 
@@ -381,13 +403,106 @@ These get conflated constantly, and the exam leans on the difference. The one-li
 
 **Analogy for the room:** the index is a library **catalogue**; the context window is the **desk**. The catalogue can locate many books, but only selected material goes on the desk for this call.
 
-#### 1.7.3 Where indexing is and is not used
+#### 1.7.3 Where the repository semantic index is built and maintained
 
-- Repository-aware Chat on GitHub and in VS Code, plus Copilot cloud agent, can use semantic indexing. Inline completion primarily uses local editing context; grep and exact text search do not require the semantic index.
-- GitHub repositories are indexed automatically when repository context is used. Non-GitHub VS Code indexing uploads workspace data to GitHub, is GitHub.com-only, and is disabled by default for Business/Enterprise until an owner enables it.
-- Without an index, Copilot can still use exact search, file reads, and language tools. Retrieval failure can be silent, so attach the controlling file when you know it.
+For a **repository hosted on GitHub**, the Copilot repository semantic index is primarily a **GitHub-managed cloud index**. VS Code can trigger repository-aware retrieval and consume the results, but each developer workstation does not need to build a completely separate semantic index for the same GitHub repository.
 
-#### 1.7.4 Org-level customization
+```text
+                     GitHub cloud
+              ┌────────────────────────┐
+              │ GitHub repository      │
+              │          │             │
+              │          ▼             │
+              │ semantic indexing      │
+              │          │             │
+              │          ▼             │
+              │ REPOSITORY INDEX       │
+              │ managed by GitHub      │
+              └──────────┬─────────────┘
+                         │ semantic retrieval
+                         ▼
+                  relevant code chunks
+                         │
+                         ▼
+                 VS Code / GitHub Chat
+                         │
+                         ▼
+                   prompt assembly
+                         │
+                         ▼
+                       model
+```
+
+**Exam-safe mental model:**
+
+| Repository/workspace | Where semantic indexing happens | Where the index is maintained / used |
+| --- | --- | --- |
+| **GitHub-hosted repository** | GitHub builds the repository semantic index when repository context is used | **GitHub cloud**, then reused by supported Copilot surfaces |
+| **Non-GitHub workspace opened in VS Code** | Eligible workspace data may be uploaded to GitHub for semantic indexing | GitHub indexing service, **subject to the semantic-indexing policy**; for Business/Enterprise it must be enabled by an owner |
+| **Exact text / grep / file search** | No semantic index required | Usually IDE/tool-side search against the workspace |
+| **Language symbols / types** | No repository semantic index required | IDE/language-server context |
+
+> **Key distinction:** the IDE is a **consumer and context orchestrator**. It can use local files, open tabs, language-server information, exact searches, and semantic retrieval. The semantic repository index for GitHub-hosted repositories is a **GitHub-managed retrieval asset**, not the model's context window and not merely a local VS Code cache.
+
+#### 1.7.4 Local search, semantic retrieval, and the model call are different stages
+
+Not every Copilot lookup against your code uses the repository semantic index.
+
+```text
+Copilot needs context
+       │
+       ├── current file / cursor           ──► local IDE context
+       ├── open tabs                       ──► local IDE context
+       ├── language symbols / types        ──► local language tools
+       ├── exact text / grep / file search ──► local/tool search
+       │
+       └── semantic repository search      ──► GitHub semantic index
+                                                │
+                                                ▼
+                                         relevant chunks
+                                                │
+                                                ▼
+                                         prompt assembly
+                                                │
+                                                ▼
+                                           context window
+                                                │
+                                                ▼
+                                              model
+```
+
+Example: searching for the literal symbol `calculateInvoice` may be solved with exact search. Asking **"Where are customer permissions enforced before an invoice is processed?"** is a semantic question; the relevant code may use names such as `authorizeUser`, `verifyAccess`, or `checkEntitlements`.
+
+- Repository-aware Chat on GitHub and in VS Code, plus Copilot cloud agent, can use semantic indexing.
+- Inline completion primarily uses latency-sensitive local editing context rather than broad repository semantic retrieval.
+- Without a semantic index, Copilot can still use exact search, file reads, and language tools.
+- Retrieval failure can be silent. If you know the controlling file, attach/reference it explicitly instead of assuming the index will rank it.
+
+#### 1.7.5 Do not confuse the repository semantic index with the public-code matching index
+
+Two GitHub indexes can appear in Copilot discussions, but they solve **different problems**:
+
+| Index | Question it answers | Used for |
+| --- | --- | --- |
+| **Repository semantic index** | "Which code in **my eligible repository/workspace** is relevant to this request?" | Context retrieval / grounding |
+| **Public-code matching index** | "Does this generated suggestion resemble code in **public GitHub repositories**?" | Public-code matching, code referencing, and related policy controls |
+
+```text
+                         GitHub Copilot
+                              │
+                 ┌────────────┴────────────┐
+                 │                         │
+                 ▼                         ▼
+       REPOSITORY SEMANTIC INDEX    PUBLIC-CODE MATCHING INDEX
+       "What code is relevant?"     "Does output match public code?"
+                 │                         │
+                 ▼                         ▼
+          context retrieval          filtering / code reference
+```
+
+> **Exam trap:** enabling or disabling public-code matching does **not** turn repository indexing on or off. Likewise, a repository being semantically indexed does not mean generated suggestions are exempt from public-code matching policy.
+
+#### 1.7.6 Org-level customization
 
 - **Copilot Spaces** collect repositories, code, issues, pull requests, notes, images, and files into durable shared context. Spaces work in GitHub Chat and can be accessed from an IDE through the GitHub MCP server.
 - **Custom instructions and prompt files** persist team conventions and reusable workflows; **custom agents and MCP servers** specialize behavior and connect approved tools or external knowledge.
@@ -398,6 +513,9 @@ These get conflated constantly, and the exam leans on the difference. The one-li
 - "Does Copilot send my entire repository?" → No. It sends an assembled, size-limited prompt.
 - "Does a bigger context window mean Copilot reads my whole repo?" → No. It raises the ceiling; the client still selects and truncates what goes in.
 - "What does indexing actually buy me?" → *Retrieval*, not capacity. It finds the chunks; the window still limits what travels.
+- "For a GitHub-hosted repository, where is the semantic repository index maintained?" → Primarily in **GitHub's cloud-managed indexing service**; VS Code consumes retrieval results and also uses local context/search.
+- "Is semantic repo indexing the same as public-code matching?" → No. Repository indexing finds relevant **private/eligible repo context**; public-code matching checks generated output against an index of **public GitHub code**.
+- "What does a 'matching public-code suggestion' mean?" → Copilot generated the suggestion, then GitHub detected that it matches or closely resembles code in a **public GitHub repository**; this does not necessarily mean Copilot copied that repository at request time.
 - "What happens when matching public code is allowed?" → Code referencing can show source links and available license information.
 - "Why did Copilot suggest a function that does not exist?" → Probabilistic generation + knowledge cutoff + insufficient context. Not a bug.
 
@@ -414,6 +532,12 @@ These get conflated constantly, and the exam leans on the difference. The one-li
 
 4. **You restart VS Code and can reopen yesterday's Copilot Chat. Does that prove GitHub retained yesterday's IDE inference prompt under the Copilot service-retention policy?**  
    **Answer:** no. It proves the chat **session was persisted**. VS Code can store sessions locally and can sync sessions to the user's GitHub account when enabled. Session persistence and Copilot inference prompt/suggestion retention are separate mechanisms.
+
+5. **Two developers clone the same GitHub repository. Does each VS Code instance have to build an independent semantic repository index?**  
+   **Answer:** no. For a GitHub-hosted repository, GitHub builds and maintains the semantic repository index in the cloud; supported Copilot clients can consume retrieval results from that shared repository index while still using local IDE context and searches.
+
+6. **A learner says, "Copilot's public-code index is the same index used to find relevant files in my private repository." What is wrong?**  
+   **Answer:** they are different. The **repository semantic index** supports context retrieval from eligible repository/workspace content. The **public-code matching index** checks generated suggestions for matches to public GitHub code and supports filtering/code referencing.
 
 ---
 
@@ -617,11 +741,17 @@ How indexing works:
 
 | Repo type | Index behaviour |
 | --- | --- |
-| Repository on GitHub | Indexed automatically in the background when a conversation uses repository context; updates are normally incremental |
-| Non-GitHub repository in VS Code | Workspace data is uploaded to GitHub for semantic indexing; available on GitHub.com only and disabled by default for Business/Enterprise until an owner enables it |
-| Semantic index unavailable | Copilot can still use exact text search, file reads, and language tools |
+| Repository on GitHub | GitHub builds and maintains the semantic repository index in the cloud when repository context is used; supported Copilot surfaces can reuse it |
+| Non-GitHub repository in VS Code | Eligible workspace data can be uploaded to GitHub for semantic indexing; for Business/Enterprise this requires the semantic-indexing policy to be enabled |
+| Semantic index unavailable | Copilot can still use exact text search, file reads, language-server symbols, and other tools |
 
-Eligibility, content exclusions, permissions, and supported file types determine what can be indexed or retrieved. Do not treat `.gitignore`, editor search exclusions, and Copilot content exclusions as interchangeable controls.
+Remember the three-stage distinction:
+
+```text
+repository/workspace ──► retrieval/index/search ──► selected chunks ──► prompt/context window ──► model
+```
+
+Eligibility, content exclusions, permissions, and supported file types determine what can be indexed or retrieved. Do not treat `.gitignore`, editor search exclusions, Copilot content exclusions, and public-code matching as interchangeable controls.
 
 #### 3.3.2 The two-phase feature flow
 
@@ -1054,24 +1184,45 @@ When content-exclusion rules were just changed, verify that the client has refre
     D. Enable content exclusion  
     **Answer: B**
 
-15. **A developer says, "The repo is indexed, so the whole repo is in the model context." What is the correction?**  
+15. **For a repository hosted on GitHub, where is Copilot's semantic repository index primarily maintained?**  
+    A. Only in each developer's VS Code cache  
+    B. In GitHub's cloud-managed indexing service  
+    C. Inside the LLM context window  
+    D. In the public-code matching filter  
+    **Answer: B**
+
+16. **Which statement correctly distinguishes Copilot's two index concepts?**  
+    A. Repository semantic indexing and public-code matching are the same service  
+    B. Repository semantic indexing finds relevant eligible repo context; public-code matching checks generated output against public GitHub code  
+    C. Public-code matching retrieves private repository chunks  
+    D. Repository semantic indexing is only a local VS Code feature  
+    **Answer: B**
+
+17. **A developer says, "The repo is indexed, so the whole repo is in the model context." What is the correction?**  
     **Answer:** the index helps find/rank candidate chunks; only selected context enters a model call, subject to the prompt/context budget.
 
-16. **A file is not excluded, but Copilot did not use it. What type of failure is this most likely?**  
+18. **A file is not excluded, but Copilot did not use it. What type of failure is this most likely?**  
     **Answer:** selection/retrieval/context failure, not a policy exclusion. Attach/reference the controlling file when known.
 
-17. **A Business/Enterprise user closes VS Code, reopens it the next day, and sees the previous Copilot Chat session. Which statement is best?**  
+19. **A Business/Enterprise user closes VS Code, reopens it the next day, and sees the previous Copilot Chat session. Which statement is best?**  
     A. The LLM permanently memorized the conversation  
     B. Seeing the session proves GitHub retained the IDE inference prompt indefinitely  
     C. VS Code persisted the chat session; relevant history can be supplied again in later model calls, which is distinct from inference prompt/suggestion retention  
     D. The repository index stores all conversation history  
     **Answer: C**
 
-18. **Which statement correctly distinguishes session persistence from inference retention?**  
+20. **Which statement correctly distinguishes session persistence from inference retention?**  
     A. They are two names for the same storage mechanism  
     B. Session persistence supports reopening/resuming chats; inference retention describes whether Copilot keeps the prompt/suggestion under the service's retention policy  
     C. Session persistence exists only on GitHub.com  
     D. Inference retention is the same as model training  
+    **Answer: B**
+
+21. **What does GitHub mean by a Copilot suggestion that “matches public code”?**  
+    A. Copilot necessarily searched a public repository and copied the code directly  
+    B. The generated suggestion was compared against GitHub's public-code matching index and found to match or closely resemble code in a public GitHub repository  
+    C. The user's private repository was made public  
+    D. Repository semantic indexing returned a public file as context  
     **Answer: B**
 
 ---
@@ -1157,4 +1308,5 @@ Complete these Microsoft Learn modules:
 - GitHub Terms of Service — [AI Features: ownership, training, output limitations](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service#j-ai-features-training-and-your-data)
 - GitHub Copilot product privacy/FAQ page (retention and training by plan/surface): <https://github.com/features/copilot>
 - VS Code — [work with chat sessions](https://code.visualstudio.com/docs/chat/chat-sessions) and [sync Copilot sessions to GitHub](https://code.visualstudio.com/docs/agents/sessions/session-sync) — session persistence/sync are distinct from Copilot inference-retention policy
+- VS Code — [workspace context and codebase search](https://code.visualstudio.com/docs/copilot/reference/workspace-context) — local IDE context/search and semantic repository retrieval are complementary mechanisms
 - GitHub Copilot Trust Center FAQ: <https://copilot.github.trust.page/faq>
