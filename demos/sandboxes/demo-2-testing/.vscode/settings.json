@@ -1,0 +1,12 @@
+{
+  // The spec'd version of pricing.py must not reach the model before step 4,
+  // or /tests will generate the CORRECT assertion and the demo has no punchline.
+  "files.exclude": {
+    "_staged": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true
+  },
+  "search.exclude": {
+    "_staged": true
+  }
+}

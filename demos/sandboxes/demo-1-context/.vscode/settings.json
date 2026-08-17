@@ -1,0 +1,10 @@
+{
+  // Keeps the staged instructions out of search, the semantic index, and the
+  // Explorer so the cold-start step in step 1 stays genuinely cold.
+  "files.exclude": {
+    "_staged": true
+  },
+  "search.exclude": {
+    "_staged": true
+  }
+}
