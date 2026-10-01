@@ -12,10 +12,10 @@
 ### 1. Open the sandbox — as its own window
 
 The files are already built for you in
-[`sandboxes/demo-2-testing/`](sandboxes/demo-2-testing/README.md):
+[`sandboxes/demo-2-testing/`](sandboxes/demo-2-testing/README.md). From the repo root:
 
 ```powershell
-code "C:\DevPROJECTS\Copilot presentation\demos\sandboxes\demo-2-testing"
+code .\demos\sandboxes\demo-2-testing
 ```
 
 > **Open it standalone.** The presentation deck contains this exact function with

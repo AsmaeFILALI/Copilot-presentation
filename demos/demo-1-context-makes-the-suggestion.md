@@ -13,10 +13,11 @@
 
 The files are already built for you in
 [`sandboxes/demo-1-context/`](sandboxes/demo-1-context/README.md). Open it as a
-**separate VS Code window**, never as a subfolder of the presentation workspace:
+**separate VS Code window**, never as a subfolder of the presentation workspace.
+From the repo root:
 
 ```powershell
-code "C:\DevPROJECTS\Copilot presentation\demos\sandboxes\demo-1-context"
+code .\demos\sandboxes\demo-1-context
 ```
 
 > **This is not optional.** Repository custom instructions load from the

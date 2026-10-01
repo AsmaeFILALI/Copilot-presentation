@@ -1,0 +1,10 @@
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Generated live during Demo 2 — must not be committed or the demo starts "solved"
+demos/sandboxes/demo-2-testing/test_*.py
+
+# Created live during Demo 1 step 3 — reset.ps1 moves it back to _staged/
+demos/sandboxes/demo-1-context/.github/

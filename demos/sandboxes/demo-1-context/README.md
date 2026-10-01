@@ -4,7 +4,8 @@
 the presentation workspace — see [why](#why-its-own-window) below.
 
 ```powershell
-code "C:\DevPROJECTS\Copilot presentation\demos\sandboxes\demo-1-context"
+# from the repo root
+code .\demos\sandboxes\demo-1-context
 ```
 
 Full script, narration, and recovery table: [demo-1-context-makes-the-suggestion.md](../../demo-1-context-makes-the-suggestion.md)

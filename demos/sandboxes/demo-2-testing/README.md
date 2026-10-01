@@ -3,7 +3,8 @@
 **Open this folder as its own VS Code window.**
 
 ```powershell
-code "C:\DevPROJECTS\Copilot presentation\demos\sandboxes\demo-2-testing"
+# from the repo root
+code .\demos\sandboxes\demo-2-testing
 ```
 
 Full script, narration, and recovery table: [demo-2-passing-test-on-buggy-code.md](../../demo-2-passing-test-on-buggy-code.md)
